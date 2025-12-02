@@ -1,4 +1,3 @@
-// src/screens/HistoryScreen.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -7,6 +6,7 @@ import {
   StyleSheet,
   FlatList,
   ListRenderItem,
+  TouchableOpacity,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/RootNavigator";
@@ -28,36 +28,39 @@ const HistoryScreen: React.FC<Props> = ({ navigation }) => {
   const [logs, setLogs] = useState<CycleLog[]>([]);
 
   useEffect(() => {
-  const unsubscribe = navigation.addListener("focus", async () => {
-    try {
-      const result = await db.getAllAsync<CycleLog>(
-        `
-        SELECT id, date, is_period_day, mood, energy, notes
-        FROM cycle_logs
-        ORDER BY date DESC, id DESC;
-        `
-      );
-
-      setLogs(result);
-    } catch (error) {
-      console.error("Error fetching logs:", error);
-    }
-  });
+    const unsubscribe = navigation.addListener("focus", async () => {
+      try {
+        const result = await db.getAllAsync<CycleLog>(
+          `
+          SELECT id, date, is_period_day, mood, energy, notes
+          FROM cycle_logs
+          ORDER BY date DESC, id DESC;
+          `
+        );
+        setLogs(result);
+      } catch (error: any) {
+        console.error("Error fetching logs:", error);
+      }
+    });
 
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, db]);
 
   const renderItem: ListRenderItem<CycleLog> = ({ item }) => (
-    <View style={styles.logCard}>
-      <Text style={styles.logDate}>{item.date}</Text>
-      <Text>
-        Period day:{" "}
-        <Text style={styles.bold}>{item.is_period_day ? "Yes" : "No"}</Text>
-      </Text>
-      {item.mood != null && <Text>Mood: {item.mood}</Text>}
-      {item.energy != null && <Text>Energy: {item.energy}</Text>}
-      {item.notes ? <Text>Notes: {item.notes}</Text> : null}
-    </View>
+    <TouchableOpacity
+      onPress={() => navigation.navigate("EditLog", { id: item.id })}
+    >
+      <View style={styles.logCard}>
+        <Text style={styles.logDate}>{item.date}</Text>
+        <Text>
+          Period day:{" "}
+          <Text style={styles.bold}>{item.is_period_day ? "Yes" : "No"}</Text>
+        </Text>
+        {item.mood != null && <Text>Mood: {item.mood}</Text>}
+        {item.energy != null && <Text>Energy: {item.energy}</Text>}
+        {item.notes ? <Text>Notes: {item.notes}</Text> : null}
+      </View>
+    </TouchableOpacity>
   );
 
   return (

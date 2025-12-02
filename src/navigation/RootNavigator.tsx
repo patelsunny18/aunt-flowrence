@@ -4,11 +4,13 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeScreen from "../screens/HomeScreen";
 import AddLogScreen from "../screens/AddLogScreen";
 import HistoryScreen from "../screens/HistoryScreen";
+import EditLogScreen from "../screens/EditLogScreen";
 
 export type RootStackParamList = {
   Home: undefined;
   AddLog: undefined;
   History: undefined;
+  EditLog: { id: number };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -17,9 +19,26 @@ const RootNavigator: React.FC = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Home">
-        <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="AddLog" component={AddLogScreen} />
-        <Stack.Screen name="History" component={HistoryScreen} />
+        <Stack.Screen
+          name="Home"
+          component={HomeScreen}
+          options={{ title: "Aunt Flowrence" }}
+        />
+        <Stack.Screen
+          name="AddLog"
+          component={AddLogScreen}
+          options={{ title: "Log Entry" }}
+        />
+        <Stack.Screen
+          name="History"
+          component={HistoryScreen}
+          options={{ title: "History" }}
+        />
+        <Stack.Screen
+          name="EditLog"
+          component={EditLogScreen}
+          options={{ title: "Edit Log" }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
