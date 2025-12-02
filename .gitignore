@@ -1,53 +1,51 @@
-# Node
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-package-lock.json
+# --- ML Artifacts ---
+ml/models/*.tflite
+ml/models/*.keras
+ml/models/cycle_metadata.json
+ml/models/saved_model/
+ml/models/checkpoints/
+ml/models/best_lstm_model.*
+ml/models/*_checkpoint*
 
-# Expo
+# Training data / intermediate data
+ml/data/processed/*.npz
+ml/data/raw/*.csv
+ml/data/intermediate/
+ml/data/processed/*
+
+# Jupyter notebook caches
+**/.ipynb_checkpoints/
+
+# Python environment / bytecode
+**/__pycache__/
+*.pyc
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# macOS files
+.DS_Store
+
+# Node / React Native build stuff
+node_modules/
 .expo/
 .expo-shared/
-dist/
-web-build/
-.expo/web-cache/
-
-# Metro bundler cache
-.cache/
-metro-cache/
-
-# macOS junk
-.DS_Store
-*.DS_Store
-
-# Logs
-*.log
-
-# Android
 android/
-*.keystore
-
-# iOS
 ios/
-Pods/
+build/
+dist/
+
+# Metro bundler / yarn logs
+yarn-error.log
+npm-debug.log
+
+# Xcode / iOS junk
 *.xcworkspace
-project.xcworkspace/
-xcuserdata/
-*.pbxuser
-*.mode1v3
-*.mode2v3
-*.perspectivev3
+*.xcuserdata/
 *.xcodeproj/*
-!*.xcodeproj/project.pbxproj
-!*.xcodeproj/xcshareddata/
+Pods/
 
-# TypeScript
-*.tsbuildinfo
-
-# SQLite (we will generate local DB files)
-*.db
-*.db-journal
-
-# Environment files
-.env
-.env.*
+# Metro cache
+.expo/web/cache/
