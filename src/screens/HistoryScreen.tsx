@@ -20,7 +20,15 @@ type CycleLog = {
   is_period_day: number;
   mood: number | null;
   energy: number | null;
+  stress_level: number | null;
+  flow_intensity: string | null;
+  symptoms: string | null;
   notes: string | null;
+};
+
+const stressText = (level: number | null) => {
+  if (level === null || level === undefined) return "None";
+  return ["None", "Low", "Medium", "High"][level] ?? "None";
 };
 
 const HistoryScreen: React.FC<Props> = ({ navigation }) => {
@@ -32,7 +40,16 @@ const HistoryScreen: React.FC<Props> = ({ navigation }) => {
       try {
         const result = await db.getAllAsync<CycleLog>(
           `
-          SELECT id, date, is_period_day, mood, energy, notes
+          SELECT
+            id,
+            date,
+            is_period_day,
+            mood_level      AS mood,
+            energy_level    AS energy,
+            stress_level,
+            flow_intensity,
+            symptoms,
+            notes
           FROM cycle_logs
           ORDER BY date DESC, id DESC;
           `
@@ -46,22 +63,34 @@ const HistoryScreen: React.FC<Props> = ({ navigation }) => {
     return unsubscribe;
   }, [navigation, db]);
 
-  const renderItem: ListRenderItem<CycleLog> = ({ item }) => (
-    <TouchableOpacity
-      onPress={() => navigation.navigate("EditLog", { id: item.id })}
-    >
-      <View style={styles.logCard}>
-        <Text style={styles.logDate}>{item.date}</Text>
-        <Text>
-          Period day:{" "}
-          <Text style={styles.bold}>{item.is_period_day ? "Yes" : "No"}</Text>
-        </Text>
-        {item.mood != null && <Text>Mood: {item.mood}</Text>}
-        {item.energy != null && <Text>Energy: {item.energy}</Text>}
-        {item.notes ? <Text>Notes: {item.notes}</Text> : null}
-      </View>
-    </TouchableOpacity>
-  );
+  const renderItem: ListRenderItem<CycleLog> = ({ item }) => {
+    const symptomList = item.symptoms ? JSON.parse(item.symptoms) : [];
+    const symptomCount = symptomList.length;
+
+    return (
+      <TouchableOpacity
+        onPress={() => navigation.navigate("EditLog", { id: item.id })}
+      >
+        <View style={styles.logCard}>
+          <Text style={styles.logDate}>{item.date}</Text>
+
+          <Text>
+            Period day:{" "}
+            <Text style={styles.bold}>{item.is_period_day ? "Yes" : "No"}</Text>
+          </Text>
+
+          {/* 1-line wellbeing summary */}
+          <Text style={{ marginTop: 4, color: "#444" }}>
+            Stress: <Text style={styles.bold}>{stressText(item.stress_level)}</Text> ·{" "}
+            Flow: <Text style={styles.bold}>{item.flow_intensity ?? "none"}</Text> ·{" "}
+            {symptomCount} symptom{symptomCount === 1 ? "" : "s"}
+          </Text>
+
+          {item.notes ? <Text style={{ marginTop: 4 }}>Notes: {item.notes}</Text> : null}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>

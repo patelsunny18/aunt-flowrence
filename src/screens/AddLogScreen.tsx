@@ -10,7 +10,7 @@ import {
   Platform,
   TouchableOpacity,
   KeyboardAvoidingView,
-  ScrollView
+  ScrollView,
 } from "react-native";
 
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -19,6 +19,27 @@ import { RootStackParamList } from "../navigation/RootNavigator";
 import { getDb } from "../db/database";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AddLog">;
+
+type FlowIntensity = "None" | "Light" | "Medium" | "Heavy";
+
+type SymptomKey =
+  | "acne"
+  | "bloating"
+  | "headache"
+  | "cravings"
+  | "back_pain"
+  | "nausea"
+  | "tender_breasts";
+
+const SYMPTOM_OPTIONS: { key: SymptomKey; label: string }[] = [
+  { key: "acne", label: "Acne" },
+  { key: "bloating", label: "Bloating" },
+  { key: "headache", label: "Headache" },
+  { key: "cravings", label: "Cravings" },
+  { key: "back_pain", label: "Back pain" },
+  { key: "nausea", label: "Nausea" },
+  { key: "tender_breasts", label: "Tender breasts" },
+];
 
 const AddLogScreen: React.FC<Props> = ({ navigation }) => {
   const db = getDb();
@@ -31,11 +52,23 @@ const AddLogScreen: React.FC<Props> = ({ navigation }) => {
   const [energy, setEnergy] = useState("");
   const [notes, setNotes] = useState("");
 
+  // NEW state for additional markers
+  const [stressLevel, setStressLevel] = useState<number>(0); // 0–3
+  const [flowIntensity, setFlowIntensity] = useState<FlowIntensity>("None");
+  const [crampSeverity, setCrampSeverity] = useState<number>(0); // 0–3
+  const [symptoms, setSymptoms] = useState<SymptomKey[]>([]);
+
   const formatDate = (d: Date) => {
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const toggleSymptom = (key: SymptomKey) => {
+    setSymptoms((prev) =>
+      prev.includes(key) ? prev.filter((s) => s !== key) : [...prev, key]
+    );
   };
 
   const handleSave = async () => {
@@ -58,10 +91,30 @@ const AddLogScreen: React.FC<Props> = ({ navigation }) => {
     try {
       await db.runAsync(
         `
-        INSERT INTO cycle_logs (date, is_period_day, mood, energy, notes)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO cycle_logs (
+          date,
+          is_period_day,
+          energy_level,
+          mood_level,
+          stress_level,
+          flow_intensity,
+          cramp_severity,
+          symptoms,
+          notes
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
-        [dateStr, isPeriodDay ? 1 : 0, moodNum, energyNum, notes || null]
+        [
+          dateStr,
+          isPeriodDay ? 1 : 0,
+          energyNum,
+          moodNum,
+          stressLevel,
+          flowIntensity,
+          crampSeverity,
+          JSON.stringify(symptoms),
+          notes || null,
+        ]
       );
 
       console.log("Log inserted successfully");
@@ -75,84 +128,197 @@ const AddLogScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   return (
-  <KeyboardAvoidingView
-    style={{ flex: 1 }}
-    behavior={Platform.OS === "ios" ? "padding" : "height"}
-  >
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Log Entry</Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled">
+        <Text style={styles.title}>Log Entry</Text>
 
-      {/* DATE PICKER */}
-      <TouchableOpacity onPress={() => setShowPicker(true)}>
-        <View style={styles.dateBox}>
-          <Text style={styles.dateLabel}>Date</Text>
-          <Text style={styles.dateValue}>{formatDate(date)}</Text>
+        {/* DATE PICKER */}
+        <TouchableOpacity onPress={() => setShowPicker(true)}>
+          <View style={styles.dateBox}>
+            <Text style={styles.dateLabel}>Date</Text>
+            <Text style={styles.dateValue}>{formatDate(date)}</Text>
+          </View>
+        </TouchableOpacity>
+
+        {showPicker && (
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display={Platform.OS === "ios" ? "inline" : "default"}
+            onChange={(event, selected) => {
+              setShowPicker(false);
+              if (selected) setDate(selected);
+            }}
+          />
+        )}
+
+        <View style={styles.row}>
+          <Text style={styles.label}>Period day?</Text>
+          <Switch value={isPeriodDay} onValueChange={setIsPeriodDay} />
         </View>
-      </TouchableOpacity>
 
-      {showPicker && (
-        <DateTimePicker
-          value={date}
-          mode="date"
-          display={Platform.OS === "ios" ? "inline" : "default"}
-          onChange={(event, selected) => {
-            setShowPicker(false);
-            if (selected) setDate(selected);
-          }}
-        />
-      )}
+        <View style={styles.field}>
+          <Text style={styles.label}>Mood (1–5)</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="number-pad"
+            value={mood}
+            onChangeText={setMood}
+            placeholder="e.g., 3"
+          />
+        </View>
 
-      <View style={styles.row}>
-        <Text style={styles.label}>Period day?</Text>
-        <Switch value={isPeriodDay} onValueChange={setIsPeriodDay} />
-      </View>
+        <View style={styles.field}>
+          <Text style={styles.label}>Energy (1–5)</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="number-pad"
+            value={energy}
+            onChangeText={setEnergy}
+            placeholder="e.g., 4"
+          />
+        </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Mood (1–5)</Text>
-        <TextInput
-          style={styles.input}
-          keyboardType="number-pad"
-          value={mood}
-          onChangeText={setMood}
-          placeholder="e.g., 3"
-        />
-      </View>
+        {/* STRESS */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Stress</Text>
+          <View style={styles.chipRow}>
+            {[0, 1, 2, 3].map((level) => {
+              const selected = stressLevel === level;
+              const label =
+                level === 0
+                  ? "None"
+                  : level === 1
+                    ? "Low"
+                    : level === 2
+                      ? "Medium"
+                      : "High";
+              return (
+                <TouchableOpacity
+                  key={level}
+                  onPress={() => setStressLevel(level)}
+                  style={[
+                    styles.chip,
+                    selected ? styles.chipSelected : null,
+                  ]}
+                >
+                  <Text>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Energy (1–5)</Text>
-        <TextInput
-          style={styles.input}
-          keyboardType="number-pad"
-          value={energy}
-          onChangeText={setEnergy}
-          placeholder="e.g., 4"
-        />
-      </View>
+        {/* CRAMPS */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Cramps</Text>
+          <View style={styles.chipRow}>
+            {[0, 1, 2, 3].map((level) => {
+              const selected = crampSeverity === level;
+              const label =
+                level === 0
+                  ? "None"
+                  : level === 1
+                    ? "Mild"
+                    : level === 2
+                      ? "Moderate"
+                      : "Severe";
+              return (
+                <TouchableOpacity
+                  key={level}
+                  onPress={() => setCrampSeverity(level)}
+                  style={[
+                    styles.chip,
+                    selected ? styles.chipSelected : null,
+                  ]}
+                >
+                  <Text>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Notes</Text>
-        <TextInput
-          style={[styles.input, styles.notesInput]}
-          multiline
-          numberOfLines={3}
-          value={notes}
-          onChangeText={setNotes}
-          placeholder="Anything you want to remember"
-        />
-      </View>
+        {/* FLOW INTENSITY */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Flow intensity</Text>
+          <View style={styles.chipRow}>
+            {(["None", "Light", "Medium", "Heavy"] as FlowIntensity[]).map(
+              (value) => {
+                const selected = flowIntensity === value;
+                return (
+                  <TouchableOpacity
+                    key={value}
+                    onPress={() => setFlowIntensity(value)}
+                    style={[
+                      styles.chip,
+                      selected ? styles.chipSelected : null,
+                    ]}
+                  >
+                    <Text style={{ textTransform: "capitalize" }}>{value}</Text>
+                  </TouchableOpacity>
+                );
+              }
+            )}
+          </View>
+        </View>
 
-      {/* BUTTON ALWAYS ACCESSIBLE */}
-      <View style={{ marginBottom: 40 }}>
-        <Button title="Save log" onPress={handleSave} />
-      </View>
-    </ScrollView>
-  </KeyboardAvoidingView>
-);
+        {/* SYMPTOMS */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Symptoms</Text>
+          <View style={styles.chipRow}>
+            {SYMPTOM_OPTIONS.map((option) => {
+              const selected = symptoms.includes(option.key);
+              return (
+                <TouchableOpacity
+                  key={option.key}
+                  onPress={() => toggleSymptom(option.key)}
+                  style={[
+                    styles.chip,
+                    selected ? styles.chipSelected : null,
+                  ]}
+                >
+                  <Text>{option.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
 
+        {/* NOTES */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Notes</Text>
+          <TextInput
+            style={[styles.input, styles.notesInput]}
+            multiline
+            numberOfLines={3}
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Anything you want to remember"
+          />
+        </View>
+
+        {/* BUTTON ALWAYS ACCESSIBLE */}
+        <View style={{ marginBottom: 40 }}>
+          <Button title="Save log" onPress={handleSave} />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
+  // was: container: { flex: 1, padding: 20 },
+  contentContainer: {
+    padding: 20,
+    paddingBottom: 40, // extra space so the button isn't squished
+  },
   title: { fontSize: 22, fontWeight: "600", marginBottom: 16 },
   dateBox: {
     borderWidth: 1,
@@ -178,6 +344,24 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   notesInput: { height: 80, textAlignVertical: "top" },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  chip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  chipSelected: {
+    borderColor: "#e11d48",
+    backgroundColor: "#ffe4ea",
+  },
 });
+
 
 export default AddLogScreen;

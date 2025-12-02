@@ -20,12 +20,37 @@ import { getDb } from "../db/database";
 
 type Props = NativeStackScreenProps<RootStackParamList, "EditLog">;
 
+type FlowIntensity = "none" | "light" | "medium" | "heavy";
+
+type SymptomKey =
+  | "acne"
+  | "bloating"
+  | "headache"
+  | "cravings"
+  | "back_pain"
+  | "nausea"
+  | "tender_breasts";
+
+const SYMPTOM_OPTIONS: { key: SymptomKey; label: string }[] = [
+  { key: "acne", label: "Acne" },
+  { key: "bloating", label: "Bloating" },
+  { key: "headache", label: "Headache" },
+  { key: "cravings", label: "Cravings" },
+  { key: "back_pain", label: "Back pain" },
+  { key: "nausea", label: "Nausea" },
+  { key: "tender_breasts", label: "Tender breasts" },
+];
+
 type CycleLogRow = {
   id: number;
   date: string;
   is_period_day: number;
-  mood: number | null;
-  energy: number | null;
+  mood_level: number | null;
+  energy_level: number | null;
+  stress_level: number | null;
+  flow_intensity: string | null;
+  cramp_severity: number | null;
+  symptoms: string | null;
   notes: string | null;
 };
 
@@ -42,6 +67,11 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
   const [energy, setEnergy] = useState("");
   const [notes, setNotes] = useState("");
 
+  const [stressLevel, setStressLevel] = useState<number>(0);
+  const [flowIntensity, setFlowIntensity] = useState<FlowIntensity>("none");
+  const [crampSeverity, setCrampSeverity] = useState<number>(0);
+  const [symptoms, setSymptoms] = useState<SymptomKey[]>([]);
+
   const formatDate = (d: Date) => {
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -54,13 +84,29 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
     return new Date(year!, (month ?? 1) - 1, day ?? 1);
   };
 
+  const toggleSymptom = (key: SymptomKey) => {
+    setSymptoms((prev) =>
+      prev.includes(key) ? prev.filter((s) => s !== key) : [...prev, key]
+    );
+  };
+
   // Load existing log
   useEffect(() => {
     const loadLog = async () => {
       try {
         const row = await db.getFirstAsync<CycleLogRow>(
           `
-          SELECT id, date, is_period_day, mood, energy, notes
+          SELECT
+            id,
+            date,
+            is_period_day,
+            mood_level,
+            energy_level,
+            stress_level,
+            flow_intensity,
+            cramp_severity,
+            symptoms,
+            notes
           FROM cycle_logs
           WHERE id = ?;
           `,
@@ -76,8 +122,16 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
 
         setDate(parseDate(row.date));
         setIsPeriodDay(row.is_period_day === 1);
-        setMood(row.mood != null ? String(row.mood) : "");
-        setEnergy(row.energy != null ? String(row.energy) : "");
+        setMood(row.mood_level != null ? String(row.mood_level) : "");
+        setEnergy(row.energy_level != null ? String(row.energy_level) : "");
+        setStressLevel(row.stress_level ?? 0);
+        setFlowIntensity(
+          (row.flow_intensity as FlowIntensity | null) ?? "none"
+        );
+        setCrampSeverity(row.cramp_severity ?? 0);
+        setSymptoms(
+          row.symptoms ? (JSON.parse(row.symptoms) as SymptomKey[]) : []
+        );
         setNotes(row.notes ?? "");
       } catch (error) {
         console.error("Error loading log:", error);
@@ -111,10 +165,30 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
       await db.runAsync(
         `
         UPDATE cycle_logs
-        SET date = ?, is_period_day = ?, mood = ?, energy = ?, notes = ?
+        SET
+          date = ?,
+          is_period_day = ?,
+          energy_level = ?,
+          mood_level = ?,
+          stress_level = ?,
+          flow_intensity = ?,
+          cramp_severity = ?,
+          symptoms = ?,
+          notes = ?
         WHERE id = ?;
         `,
-        [dateStr, isPeriodDay ? 1 : 0, moodNum, energyNum, notes || null, id]
+        [
+          dateStr,
+          isPeriodDay ? 1 : 0,
+          energyNum,
+          moodNum,
+          stressLevel,
+          flowIntensity,
+          crampSeverity,
+          JSON.stringify(symptoms),
+          notes || null,
+          id,
+        ]
       );
 
       Alert.alert("Updated", "Your changes have been saved.", [
@@ -137,10 +211,7 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
           style: "destructive",
           onPress: async () => {
             try {
-              await db.runAsync(
-                `DELETE FROM cycle_logs WHERE id = ?;`,
-                [id]
-              );
+              await db.runAsync(`DELETE FROM cycle_logs WHERE id = ?;`, [id]);
               Alert.alert("Deleted", "The log was deleted.", [
                 { text: "OK", onPress: () => navigation.goBack() },
               ]);
@@ -216,6 +287,112 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
           />
         </View>
 
+        {/* STRESS */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Stress</Text>
+          <View style={styles.chipRow}>
+            {[0, 1, 2, 3].map((level) => {
+              const selected = stressLevel === level;
+              const label =
+                level === 0
+                  ? "None"
+                  : level === 1
+                  ? "Low"
+                  : level === 2
+                  ? "Medium"
+                  : "High";
+              return (
+                <TouchableOpacity
+                  key={level}
+                  onPress={() => setStressLevel(level)}
+                  style={[
+                    styles.chip,
+                    selected ? styles.chipSelected : null,
+                  ]}
+                >
+                  <Text>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* CRAMPS */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Cramps</Text>
+          <View style={styles.chipRow}>
+            {[0, 1, 2, 3].map((level) => {
+              const selected = crampSeverity === level;
+              const label =
+                level === 0
+                  ? "None"
+                  : level === 1
+                  ? "Mild"
+                  : level === 2
+                  ? "Moderate"
+                  : "Severe";
+              return (
+                <TouchableOpacity
+                  key={level}
+                  onPress={() => setCrampSeverity(level)}
+                  style={[
+                    styles.chip,
+                    selected ? styles.chipSelected : null,
+                  ]}
+                >
+                  <Text>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* FLOW INTENSITY */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Flow intensity</Text>
+          <View style={styles.chipRow}>
+            {(["none", "light", "medium", "heavy"] as FlowIntensity[]).map(
+              (value) => {
+                const selected = flowIntensity === value;
+                return (
+                  <TouchableOpacity
+                    key={value}
+                    onPress={() => setFlowIntensity(value)}
+                    style={[
+                      styles.chip,
+                      selected ? styles.chipSelected : null,
+                    ]}
+                  >
+                    <Text style={{ textTransform: "capitalize" }}>{value}</Text>
+                  </TouchableOpacity>
+                );
+              }
+            )}
+          </View>
+        </View>
+
+        {/* SYMPTOMS */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Symptoms</Text>
+          <View style={styles.chipRow}>
+            {SYMPTOM_OPTIONS.map((option) => {
+              const selected = symptoms.includes(option.key);
+              return (
+                <TouchableOpacity
+                  key={option.key}
+                  onPress={() => toggleSymptom(option.key)}
+                  style={[
+                    styles.chip,
+                    selected ? styles.chipSelected : null,
+                  ]}
+                >
+                  <Text>{option.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
         <View style={styles.field}>
           <Text style={styles.label}>Notes</Text>
           <TextInput
@@ -267,6 +444,23 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   notesInput: { height: 80, textAlignVertical: "top" },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  chip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  chipSelected: {
+    borderColor: "#e11d48",
+    backgroundColor: "#ffe4ea",
+  },
 });
 
 export default EditLogScreen;
