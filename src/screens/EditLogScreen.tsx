@@ -41,12 +41,15 @@ const SYMPTOM_OPTIONS: { key: SymptomKey; label: string }[] = [
   { key: "tender_breasts", label: "Tender breasts" },
 ];
 
+const MOOD_EMOJIS = ["😞", "🙁", "😐", "🙂", "😄"];
+const ENERGY_EMOJIS = ["🥱", "😐", "⚡", "🔥"];
+
 type CycleLogRow = {
   id: number;
   date: string;
   is_period_day: number;
-  mood_level: number | null;
-  energy_level: number | null;
+  mood_level: string | null;
+  energy_level: string | null;
   stress_level: number | null;
   flow_intensity: string | null;
   cramp_severity: number | null;
@@ -63,9 +66,10 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
   const [showPicker, setShowPicker] = useState(false);
 
   const [isPeriodDay, setIsPeriodDay] = useState(false);
-  const [mood, setMood] = useState("");
-  const [energy, setEnergy] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [mood, setMood] = useState<string | null>(null);
+  const [energy, setEnergy] = useState<string | null>(null);
 
   const [stressLevel, setStressLevel] = useState<number>(0);
   const [flowIntensity, setFlowIntensity] = useState<FlowIntensity>("none");
@@ -122,8 +126,8 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
 
         setDate(parseDate(row.date));
         setIsPeriodDay(row.is_period_day === 1);
-        setMood(row.mood_level != null ? String(row.mood_level) : "");
-        setEnergy(row.energy_level != null ? String(row.energy_level) : "");
+        setMood(row.mood_level ?? null);
+        setEnergy(row.energy_level ?? null);
         setStressLevel(row.stress_level ?? 0);
         setFlowIntensity(
           (row.flow_intensity as FlowIntensity | null) ?? "none"
@@ -147,19 +151,7 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
   }, [db, id, navigation]);
 
   const handleSave = async () => {
-    const moodNum = mood ? Number(mood) : null;
-    const energyNum = energy ? Number(energy) : null;
     const dateStr = formatDate(date);
-
-    if (mood && (moodNum! < 1 || moodNum! > 5)) {
-      Alert.alert("Invalid mood", "Mood should be between 1 and 5.");
-      return;
-    }
-
-    if (energy && (energyNum! < 1 || energyNum! > 5)) {
-      Alert.alert("Invalid energy", "Energy should be between 1 and 5.");
-      return;
-    }
 
     try {
       await db.runAsync(
@@ -180,8 +172,8 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
         [
           dateStr,
           isPeriodDay ? 1 : 0,
-          energyNum,
-          moodNum,
+          energy || null,
+          mood || null,
           stressLevel,
           flowIntensity,
           crampSeverity,
@@ -238,7 +230,10 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
       style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>Edit Log</Text>
 
         <TouchableOpacity onPress={() => setShowPicker(true)}>
@@ -265,26 +260,48 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
           <Switch value={isPeriodDay} onValueChange={setIsPeriodDay} />
         </View>
 
+        {/* MOOD */}
         <View style={styles.field}>
-          <Text style={styles.label}>Mood (1–5)</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="number-pad"
-            value={mood}
-            onChangeText={setMood}
-            placeholder="e.g., 3"
-          />
+          <Text style={styles.label}>Mood</Text>
+          <View style={styles.chipRow}>
+            {MOOD_EMOJIS.map((emoji) => {
+              const selected = mood === emoji;
+              return (
+                <TouchableOpacity
+                  key={emoji}
+                  onPress={() => setMood(emoji)}
+                  style={[
+                    styles.chip,
+                    selected ? styles.chipSelected : null,
+                  ]}
+                >
+                  <Text style={styles.chipEmoji}>{emoji}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
+        {/* ENERGY */}
         <View style={styles.field}>
-          <Text style={styles.label}>Energy (1–5)</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="number-pad"
-            value={energy}
-            onChangeText={setEnergy}
-            placeholder="e.g., 4"
-          />
+          <Text style={styles.label}>Energy</Text>
+          <View style={styles.chipRow}>
+            {ENERGY_EMOJIS.map((emoji) => {
+              const selected = energy === emoji;
+              return (
+                <TouchableOpacity
+                  key={emoji}
+                  onPress={() => setEnergy(emoji)}
+                  style={[
+                    styles.chip,
+                    selected ? styles.chipSelected : null,
+                  ]}
+                >
+                  <Text style={styles.chipEmoji}>{emoji}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {/* STRESS */}
@@ -393,6 +410,7 @@ const EditLogScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
         </View>
 
+        {/* NOTES */}
         <View style={styles.field}>
           <Text style={styles.label}>Notes</Text>
           <TextInput
@@ -460,6 +478,9 @@ const styles = StyleSheet.create({
   chipSelected: {
     borderColor: "#e11d48",
     backgroundColor: "#ffe4ea",
+  },
+  chipEmoji: {
+    fontSize: 20,
   },
 });
 

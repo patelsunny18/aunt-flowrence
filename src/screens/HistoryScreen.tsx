@@ -18,8 +18,8 @@ type CycleLog = {
   id: number;
   date: string;
   is_period_day: number;
-  mood: number | null;
-  energy: number | null;
+  mood: string | null;
+  energy: string | null;
   stress_level: number | null;
   flow_intensity: string | null;
   symptoms: string | null;

@@ -20,7 +20,7 @@ import { getDb } from "../db/database";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AddLog">;
 
-type FlowIntensity = "None" | "Light" | "Medium" | "Heavy";
+type FlowIntensity = "none" | "light" | "medium" | "heavy";
 
 type SymptomKey =
   | "acne"
@@ -41,6 +41,10 @@ const SYMPTOM_OPTIONS: { key: SymptomKey; label: string }[] = [
   { key: "tender_breasts", label: "Tender breasts" },
 ];
 
+// Mood + energy emojis (we store these directly)
+const MOOD_EMOJIS = ["😞", "🙁", "😐", "🙂", "😄"];
+const ENERGY_EMOJIS = ["🥱", "😐", "⚡", "🔥"];
+
 const AddLogScreen: React.FC<Props> = ({ navigation }) => {
   const db = getDb();
 
@@ -48,13 +52,15 @@ const AddLogScreen: React.FC<Props> = ({ navigation }) => {
   const [showPicker, setShowPicker] = useState(false);
 
   const [isPeriodDay, setIsPeriodDay] = useState(false);
-  const [mood, setMood] = useState("");
-  const [energy, setEnergy] = useState("");
   const [notes, setNotes] = useState("");
 
-  // NEW state for additional markers
+  // NEW: mood + energy as emoji (stored as TEXT in DB)
+  const [mood, setMood] = useState<string | null>(null);
+  const [energy, setEnergy] = useState<string | null>(null);
+
+  // Existing extra markers
   const [stressLevel, setStressLevel] = useState<number>(0); // 0–3
-  const [flowIntensity, setFlowIntensity] = useState<FlowIntensity>("None");
+  const [flowIntensity, setFlowIntensity] = useState<FlowIntensity>("none");
   const [crampSeverity, setCrampSeverity] = useState<number>(0); // 0–3
   const [symptoms, setSymptoms] = useState<SymptomKey[]>([]);
 
@@ -74,19 +80,7 @@ const AddLogScreen: React.FC<Props> = ({ navigation }) => {
   const handleSave = async () => {
     console.log("Save button pressed");
 
-    const moodNum = mood ? Number(mood) : null;
-    const energyNum = energy ? Number(energy) : null;
     const dateStr = formatDate(date);
-
-    if (mood && (moodNum! < 1 || moodNum! > 5)) {
-      Alert.alert("Invalid mood", "Mood should be between 1 and 5.");
-      return;
-    }
-
-    if (energy && (energyNum! < 1 || energyNum! > 5)) {
-      Alert.alert("Invalid energy", "Energy should be between 1 and 5.");
-      return;
-    }
 
     try {
       await db.runAsync(
@@ -107,8 +101,8 @@ const AddLogScreen: React.FC<Props> = ({ navigation }) => {
         [
           dateStr,
           isPeriodDay ? 1 : 0,
-          energyNum,
-          moodNum,
+          energy || null, // store emoji or null
+          mood || null,   // store emoji or null
           stressLevel,
           flowIntensity,
           crampSeverity,
@@ -135,7 +129,8 @@ const AddLogScreen: React.FC<Props> = ({ navigation }) => {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.contentContainer}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>Log Entry</Text>
 
         {/* DATE PICKER */}
@@ -163,26 +158,48 @@ const AddLogScreen: React.FC<Props> = ({ navigation }) => {
           <Switch value={isPeriodDay} onValueChange={setIsPeriodDay} />
         </View>
 
+        {/* MOOD (emoji chips) */}
         <View style={styles.field}>
-          <Text style={styles.label}>Mood (1–5)</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="number-pad"
-            value={mood}
-            onChangeText={setMood}
-            placeholder="e.g., 3"
-          />
+          <Text style={styles.label}>Mood</Text>
+          <View style={styles.chipRow}>
+            {MOOD_EMOJIS.map((emoji) => {
+              const selected = mood === emoji;
+              return (
+                <TouchableOpacity
+                  key={emoji}
+                  onPress={() => setMood(emoji)}
+                  style={[
+                    styles.chip,
+                    selected ? styles.chipSelected : null,
+                  ]}
+                >
+                  <Text style={styles.chipEmoji}>{emoji}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
+        {/* ENERGY (emoji chips) */}
         <View style={styles.field}>
-          <Text style={styles.label}>Energy (1–5)</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="number-pad"
-            value={energy}
-            onChangeText={setEnergy}
-            placeholder="e.g., 4"
-          />
+          <Text style={styles.label}>Energy</Text>
+          <View style={styles.chipRow}>
+            {ENERGY_EMOJIS.map((emoji) => {
+              const selected = energy === emoji;
+              return (
+                <TouchableOpacity
+                  key={emoji}
+                  onPress={() => setEnergy(emoji)}
+                  style={[
+                    styles.chip,
+                    selected ? styles.chipSelected : null,
+                  ]}
+                >
+                  <Text style={styles.chipEmoji}>{emoji}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {/* STRESS */}
@@ -195,10 +212,10 @@ const AddLogScreen: React.FC<Props> = ({ navigation }) => {
                 level === 0
                   ? "None"
                   : level === 1
-                    ? "Low"
-                    : level === 2
-                      ? "Medium"
-                      : "High";
+                  ? "Low"
+                  : level === 2
+                  ? "Medium"
+                  : "High";
               return (
                 <TouchableOpacity
                   key={level}
@@ -225,10 +242,10 @@ const AddLogScreen: React.FC<Props> = ({ navigation }) => {
                 level === 0
                   ? "None"
                   : level === 1
-                    ? "Mild"
-                    : level === 2
-                      ? "Moderate"
-                      : "Severe";
+                  ? "Mild"
+                  : level === 2
+                  ? "Moderate"
+                  : "Severe";
               return (
                 <TouchableOpacity
                   key={level}
@@ -249,7 +266,7 @@ const AddLogScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.field}>
           <Text style={styles.label}>Flow intensity</Text>
           <View style={styles.chipRow}>
-            {(["None", "Light", "Medium", "Heavy"] as FlowIntensity[]).map(
+            {(["none", "light", "medium", "heavy"] as FlowIntensity[]).map(
               (value) => {
                 const selected = flowIntensity === value;
                 return (
@@ -314,10 +331,9 @@ const AddLogScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  // was: container: { flex: 1, padding: 20 },
   contentContainer: {
     padding: 20,
-    paddingBottom: 40, // extra space so the button isn't squished
+    paddingBottom: 40,
   },
   title: { fontSize: 22, fontWeight: "600", marginBottom: 16 },
   dateBox: {
@@ -361,7 +377,9 @@ const styles = StyleSheet.create({
     borderColor: "#e11d48",
     backgroundColor: "#ffe4ea",
   },
+  chipEmoji: {
+    fontSize: 20,
+  },
 });
-
 
 export default AddLogScreen;
