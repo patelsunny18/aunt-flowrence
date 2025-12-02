@@ -198,9 +198,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
     todaySummaryText = `Stress: ${stressText(
       todayLog.stress_level
-    )} · Flow: ${todayLog.flow_intensity ?? "none"} · ${
-      todaySymptomCount
-    } symptom${todaySymptomCount === 1 ? "" : "s"}`;
+    )} · Flow: ${todayLog.flow_intensity ?? "none"} · ${todaySymptomCount
+      } symptom${todaySymptomCount === 1 ? "" : "s"}`;
   }
 
   return (
@@ -318,7 +317,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           title="View history"
           onPress={() => navigation.navigate("History")}
         />
+        <Button
+          title="View insights"
+          onPress={() => navigation.navigate("Insights")}
+        />
       </View>
+
     </View>
   );
 };
