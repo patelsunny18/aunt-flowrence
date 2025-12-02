@@ -17,13 +17,15 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [nextPeriod, setNextPeriod] = useState<string | null>(null);
   const [avgCycleLength, setAvgCycleLength] = useState<number | null>(null);
   const [cycleCount, setCycleCount] = useState<number>(0);
+  const [lastCycleLength, setLastCycleLength] = useState<number | null>(null);
+  const [shortestCycle, setShortestCycle] = useState<number | null>(null);
+  const [longestCycle, setLongestCycle] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const parseDate = (dateStr: string): Date => {
-    // Date from "YYYY-MM-DD" without timezone weirdness
     const [year, month, day] = dateStr.split("-").map(Number);
-    return new Date(year, (month ?? 1) - 1, day);
+    return new Date(year!, (month ?? 1) - 1, day ?? 1);
   };
 
   const diffInDays = (a: Date, b: Date): number => {
@@ -39,7 +41,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     return `${y}-${m}-${d}`;
   };
 
-  const loadPrediction = async () => {
+  const loadCycleData = async () => {
     setLoading(true);
     setError(null);
 
@@ -53,19 +55,22 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         `
       );
 
-      // Not enough data → can't compute cycle length
+      setCycleCount(rows.length);
+
+      // Not enough data to compute cycles
       if (!rows || rows.length < 2) {
         setNextPeriod(null);
         setAvgCycleLength(null);
-        setCycleCount(rows.length);
+        setLastCycleLength(null);
+        setShortestCycle(null);
+        setLongestCycle(null);
         setLoading(false);
         return;
       }
 
-      // Convert to Date objects
       const dates = rows.map((r) => parseDate(r.date));
 
-      // Compute differences between consecutive period starts
+      // Compute cycle lengths between consecutive period starts
       const lengths: number[] = [];
       for (let i = 1; i < dates.length; i++) {
         const len = diffInDays(dates[i - 1], dates[i]);
@@ -77,35 +82,47 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       if (lengths.length === 0) {
         setNextPeriod(null);
         setAvgCycleLength(null);
-        setCycleCount(rows.length);
+        setLastCycleLength(null);
+        setShortestCycle(null);
+        setLongestCycle(null);
         setLoading(false);
         return;
       }
 
-      const avg =
-        lengths.reduce((sum, v) => sum + v, 0) / lengths.length;
+      const sum = lengths.reduce((s, v) => s + v, 0);
+      const avg = sum / lengths.length;
+      const lastLen = lengths[lengths.length - 1];
+      const shortest = Math.min(...lengths);
+      const longest = Math.max(...lengths);
 
       const lastPeriod = dates[dates.length - 1];
       const predicted = new Date(lastPeriod);
       predicted.setDate(predicted.getDate() + Math.round(avg));
 
+      // Set state for prediction card
       setAvgCycleLength(Math.round(avg));
       setNextPeriod(formatDate(predicted));
-      setCycleCount(rows.length);
+
+      // Set state for insights card
+      setLastCycleLength(lastLen);
+      setShortestCycle(shortest);
+      setLongestCycle(longest);
     } catch (e: any) {
-      console.error("Error computing prediction:", e);
-      setError("Could not compute prediction.");
+      console.error("Error computing cycle data:", e);
+      setError("Could not compute prediction or insights.");
       setNextPeriod(null);
       setAvgCycleLength(null);
+      setLastCycleLength(null);
+      setShortestCycle(null);
+      setLongestCycle(null);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // Recalculate prediction whenever Home comes into focus
     const unsubscribe = navigation.addListener("focus", () => {
-      loadPrediction();
+      loadCycleData();
     });
 
     return unsubscribe;
@@ -118,6 +135,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         Private, on-device menstrual cycle tracking.
       </Text>
 
+      {/* Prediction card */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Next expected period</Text>
 
@@ -137,6 +155,51 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={styles.cardText}>
             Not enough data yet. Log at least 2 period start days.
           </Text>
+        )}
+      </View>
+
+      {/* Insights card */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Cycle insights</Text>
+
+        {loading ? (
+          <ActivityIndicator style={{ marginTop: 8 }} />
+        ) : cycleCount < 2 || !avgCycleLength ? (
+          <Text style={styles.cardText}>
+            Once you’ve logged at least 2 periods, you’ll see stats about your
+            cycle here.
+          </Text>
+        ) : (
+          <>
+            <Text style={styles.insightLine}>
+              Last cycle length:{" "}
+              <Text style={styles.bold}>
+                {lastCycleLength} days
+              </Text>
+            </Text>
+            <Text style={styles.insightLine}>
+              Average cycle length:{" "}
+              <Text style={styles.bold}>
+                {avgCycleLength} days
+              </Text>
+            </Text>
+            <Text style={styles.insightLine}>
+              Shortest cycle:{" "}
+              <Text style={styles.bold}>
+                {shortestCycle} days
+              </Text>
+            </Text>
+            <Text style={styles.insightLine}>
+              Longest cycle:{" "}
+              <Text style={styles.bold}>
+                {longestCycle} days
+              </Text>
+            </Text>
+            <Text style={styles.cardSubtext}>
+              Based on {cycleCount} logged period starts. Editing or deleting
+              logs will update these stats.
+            </Text>
+          </>
         )}
       </View>
 
@@ -168,12 +231,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#ddd",
-    marginBottom: 24,
+    marginBottom: 16,
   },
-  cardTitle: { fontSize: 16, fontWeight: "600", marginBottom: 4 },
+  cardTitle: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
   cardText: { fontSize: 16 },
-  cardSubtext: { fontSize: 12, color: "#666", marginTop: 6 },
-  buttons: { gap: 12 },
+  cardSubtext: { fontSize: 12, color: "#666", marginTop: 8 },
+  insightLine: { fontSize: 14, marginBottom: 4 },
+  bold: { fontWeight: "600" },
+  buttons: { gap: 12, marginTop: 8 },
 });
 
 export default HomeScreen;
