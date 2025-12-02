@@ -1,6 +1,12 @@
 // src/screens/HomeScreen.tsx
 import React, { useEffect, useState } from "react";
-import { View, Text, Button, StyleSheet, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  Button,
+  StyleSheet,
+  ActivityIndicator,
+} from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/RootNavigator";
 import { getDb } from "../db/database";
@@ -9,6 +15,20 @@ type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
 type PeriodDayRow = {
   date: string; // "YYYY-MM-DD"
+};
+
+type TodayLogRow = {
+  id: number;
+  date: string;
+  is_period_day: number;
+  stress_level: number | null;
+  flow_intensity: string | null;
+  symptoms: string | null;
+};
+
+const stressText = (level: number | null) => {
+  if (level === null || level === undefined) return "None";
+  return ["None", "Low", "Medium", "High"][level] ?? "None";
 };
 
 const HomeScreen: React.FC<Props> = ({ navigation }) => {
@@ -22,6 +42,8 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [longestCycle, setLongestCycle] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [todayLog, setTodayLog] = useState<TodayLogRow | null>(null);
 
   const parseDate = (dateStr: string): Date => {
     const [year, month, day] = dateStr.split("-").map(Number);
@@ -39,6 +61,38 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     const m = String(date.getMonth() + 1).padStart(2, "0");
     const d = String(date.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
+  };
+
+  const loadTodayLog = async () => {
+    const todayStr = formatDate(new Date());
+
+    try {
+      const row = await db.getFirstAsync<TodayLogRow>(
+        `
+        SELECT
+          id,
+          date,
+          is_period_day,
+          stress_level,
+          flow_intensity,
+          symptoms
+        FROM cycle_logs
+        WHERE date = ?
+        ORDER BY id DESC
+        LIMIT 1;
+        `,
+        [todayStr]
+      );
+
+      if (!row) {
+        setTodayLog(null);
+      } else {
+        setTodayLog(row);
+      }
+    } catch (e) {
+      console.error("Error loading today's log:", e);
+      setTodayLog(null);
+    }
   };
 
   const loadCycleData = async () => {
@@ -123,10 +177,31 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
       loadCycleData();
+      loadTodayLog();
     });
 
     return unsubscribe;
   }, [navigation]);
+
+  let todaySummaryText: string | null = null;
+  let todaySymptomCount = 0;
+
+  if (todayLog) {
+    try {
+      const parsed = todayLog.symptoms ? JSON.parse(todayLog.symptoms) : [];
+      if (Array.isArray(parsed)) {
+        todaySymptomCount = parsed.length;
+      }
+    } catch {
+      todaySymptomCount = 0;
+    }
+
+    todaySummaryText = `Stress: ${stressText(
+      todayLog.stress_level
+    )} · Flow: ${todayLog.flow_intensity ?? "none"} · ${
+      todaySymptomCount
+    } symptom${todaySymptomCount === 1 ? "" : "s"}`;
+  }
 
   return (
     <View style={styles.container}>
@@ -134,6 +209,45 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       <Text style={styles.subtitle}>
         Private, on-device menstrual cycle tracking.
       </Text>
+
+      {/* Today's snapshot card */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Today&apos;s snapshot</Text>
+
+        {todayLog ? (
+          <>
+            <Text style={styles.cardText}>
+              Period day:{" "}
+              <Text style={styles.bold}>
+                {todayLog.is_period_day ? "Yes" : "No"}
+              </Text>
+            </Text>
+            {todaySummaryText && (
+              <Text style={[styles.cardSubtext, { marginTop: 4 }]}>
+                {todaySummaryText}
+              </Text>
+            )}
+            <View style={{ marginTop: 8 }}>
+              <Button
+                title="Edit today's log"
+                onPress={() => navigation.navigate("EditLog", { id: todayLog.id })}
+              />
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.cardText}>
+              You haven&apos;t logged anything for today yet.
+            </Text>
+            <View style={{ marginTop: 8 }}>
+              <Button
+                title="Log today"
+                onPress={() => navigation.navigate("AddLog")}
+              />
+            </View>
+          </>
+        )}
+      </View>
 
       {/* Prediction card */}
       <View style={styles.card}>
@@ -173,27 +287,19 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           <>
             <Text style={styles.insightLine}>
               Last cycle length:{" "}
-              <Text style={styles.bold}>
-                {lastCycleLength} days
-              </Text>
+              <Text style={styles.bold}>{lastCycleLength} days</Text>
             </Text>
             <Text style={styles.insightLine}>
               Average cycle length:{" "}
-              <Text style={styles.bold}>
-                {avgCycleLength} days
-              </Text>
+              <Text style={styles.bold}>{avgCycleLength} days</Text>
             </Text>
             <Text style={styles.insightLine}>
               Shortest cycle:{" "}
-              <Text style={styles.bold}>
-                {shortestCycle} days
-              </Text>
+              <Text style={styles.bold}>{shortestCycle} days</Text>
             </Text>
             <Text style={styles.insightLine}>
               Longest cycle:{" "}
-              <Text style={styles.bold}>
-                {longestCycle} days
-              </Text>
+              <Text style={styles.bold}>{longestCycle} days</Text>
             </Text>
             <Text style={styles.cardSubtext}>
               Based on {cycleCount} logged period starts. Editing or deleting
@@ -219,7 +325,12 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, justifyContent: "center" },
-  title: { fontSize: 28, fontWeight: "700", marginBottom: 8, textAlign: "center" },
+  title: {
+    fontSize: 28,
+    fontWeight: "700",
+    marginBottom: 8,
+    textAlign: "center",
+  },
   subtitle: {
     fontSize: 14,
     color: "#555",
